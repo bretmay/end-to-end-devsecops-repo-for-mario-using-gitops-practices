@@ -47,6 +47,7 @@ jobs:
         run: |
           docker build -t bretmay/supermarioproject:${{ env.VERSION }} .
           docker push bretmay/supermarioproject:${{ env.VERSION }}
+          
  
   run_container_image_scan_on_supermario_docker_image:
     runs-on: ubuntu-latest
