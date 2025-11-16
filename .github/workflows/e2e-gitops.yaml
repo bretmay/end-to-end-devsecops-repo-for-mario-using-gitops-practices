@@ -73,11 +73,11 @@ jobs:
           docker save -o supermariolatestdockerimage.tar bretmay/supermarioproject:${{ needs.sonarqube_sast_scan.outputs.VERSION }}
      
       - name: Run Trivy vulnerability scanner in tarball mode
-        run: |
-          docker run --rm -v $GITHUB_WORKSPACE:/github/workspace aquasecurity/trivy:latest image \
-            --input /github/workspace/supermariolatestdockerimage.tar \
-            --exit-code 0 \
-            --severity CRITICAL,HIGH
+        uses: aquasecurity/trivy-action@master
+        with:
+          input: /github/workspace/supermariolatestdockerimage.tar
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
           
   update_k8s_yaml_version_file_with_latest_image_tag:
     runs-on: ubuntu-latest
