@@ -5,20 +5,27 @@ on:
     branches:
       - main
  
-env:
-  VERSION: $(( $(cat version.txt) + 1 ))
-  
+jobs:
 jobs:
  
  
   sonarqube_sast_scan:
     runs-on: ubuntu-latest
+    outputs:
+      VERSION: ${{ steps.set_version.outputs.VERSION }}
  
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
         with:
           fetch-depth: 0  # Shallow clones should be disabled for better analysis relevance
+
+      - name: Compute next version
+        id: set_version
+        run: |
+          CURRENT=$(cat version.txt || echo 0)
+          NEXT=$((CURRENT + 1))
+          echo "VERSION=$NEXT" >> $GITHUB_OUTPUT
  
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@master
@@ -46,12 +53,12 @@ jobs:
  
       - name: Build and Push Docker Image
         run: |
-          docker build -t bretmay/supermarioproject:${{ env.VERSION }} .
-          docker push bretmay/supermarioproject:${{ env.VERSION }}
+          docker build -t bretmay/supermarioproject:${{ needs.sonarqube_sast_scan.outputs.VERSION }} .
+          docker push bretmay/supermarioproject:${{ needs.sonarqube_sast_scan.outputs.VERSION }}
           
   run_container_image_scan_on_supermario_docker_image:
     runs-on: ubuntu-latest
-    needs: build_push_supermario_docker_image	
+    needs: [build_push_supermario_docker_image, sonarqube_sast_scan]
  
     steps:
       - name: Checkout Repository
@@ -62,19 +69,19 @@ jobs:
         
       - name: Get Docker Image from Docker Hub
         run: |
-          docker pull bretmay/supermarioproject:${{ env.VERSION }}
-          docker save -o supermariolatestdockerimage.tar bretmay/supermarioproject:${{ env.VERSION }}
+          docker pull bretmay/supermarioproject:${{ needs.sonarqube_sast_scan.outputs.VERSION }}
+          docker save -o supermariolatestdockerimage.tar bretmay/supermarioproject:${{ needs.sonarqube_sast_scan.outputs.VERSION }}
      
       - name: Run Trivy vulnerability scanner in tarball mode
-        uses: aquasecurity/trivy-action@master
-        with:
-          input: /github/workspace/supermariolatestdockerimage.tar
-          exit-code: '0'
-          severity: 'CRITICAL,HIGH'
+        run: |
+          docker run --rm -v $GITHUB_WORKSPACE:/github/workspace aquasecurity/trivy:latest image \
+            --input /github/workspace/supermariolatestdockerimage.tar \
+            --exit-code 0 \
+            --severity CRITICAL,HIGH
           
   update_k8s_yaml_version_file_with_latest_image_tag:
     runs-on: ubuntu-latest
-    needs: run_container_image_scan_on_supermario_docker_image
+    needs: [run_container_image_scan_on_supermario_docker_image, sonarqube_sast_scan]
     
     steps:
       - name: Checkout Repository
@@ -88,8 +95,8 @@ jobs:
       - name: Update Deployment YAML
         run: |
           git pull
-          sed -i "s|image: raghuthesecurityexpert/supermariogitopsproject:.*$|image: raghuthesecurityexpert/supermariogitopsproject:${{ env.VERSION }}|" deployment.yaml
-          echo ${{ env.VERSION }} > version.txt
+          sed -i "s|image: raghuthesecurityexpert/supermariogitopsproject:.*$|image: raghuthesecurityexpert/supermariogitopsproject:${{ needs.sonarqube_sast_scan.outputs.VERSION }}|" deployment.yaml
+          echo ${{ needs.sonarqube_sast_scan.outputs.VERSION }} > version.txt
           CURRENT_VERSION=$(cat version.txt)
           git add deployment.yaml version.txt
           git commit -m "Updated deployment yaml and version txt file with supermario image tag to ${CURRENT_VERSION}"
