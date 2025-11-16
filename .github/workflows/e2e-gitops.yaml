@@ -60,13 +60,9 @@ jobs:
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
         
       - name: Get Docker Image from Docker Hub
-        env:
-          VERSION: ${{ env.VERSION }}
         run: |
-          echo "VERSION=$VERSION"
-          docker pull bretmay/supermarioproject:${VERSION}
-          docker save -o supermariolatestdockerimage.tar bretmay/supermarioproject:${VERSION}
-          ls -la supermariolatestdockerimage.tar
+          docker pull bretmay/supermarioproject:${{ env.VERSION }}
+          docker save -o supermariolatestdockerimage.tar bretmay/supermarioproject:${{ env.VERSION }}
 
      
       - name: Log in to Docker Hub
